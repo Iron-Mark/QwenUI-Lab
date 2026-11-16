@@ -2,6 +2,20 @@
 
 Local scripts for bundle size and Lighthouse checks. CI still enforces a performance budget on `/` and `/design-system` (see `.github/workflows/ci.yml`).
 
+## Current LCP decision (2026-11-17)
+
+The **2500 ms simulated-LCP target remains unresolved**. The latest matched
+theme experiment showed no measurable improvement, and direct startup storage
+timing did not identify a material LCP bottleneck in the tested visits.
+Keep the existing theme/storage behavior; the diagnostic theme change was reverted.
+
+Use the [matched measurement procedure](#beforeafter-measurements) for a new
+candidate. The [theme experiment](#server-seeded-theme-experiment-2026-11-17)
+and [storage investigation](#startup-web-storage-investigation-2026-11-17)
+below record the tested scope and limitations. Observed browser timings and
+CPU-profile attribution do not replace the simulated budget or establish field
+performance. See [evidence retention](#evidence-retention) before reusing old results.
+
 ## Bundle analysis (`@next/bundle-analyzer`)
 
 Use this when adding heavy dependencies, changing dynamic imports, or tuning home below-the-fold deferrals.
@@ -120,10 +134,11 @@ a slower sample. The candidate was therefore reverted. These local synthetic
 results do not establish production field performance, and the 2500 ms
 simulated-LCP warning remains unresolved.
 
-Raw reports and warm-ups are retained locally under `.perf/lcp-experiment/`
-as `control-*` and `high-priority-*`. Earlier exploratory reports are also
-retained; the first `candidate-*` batch had overlapping preview servers and
-is excluded from this comparison.
+Reports and warm-ups were originally written under `.perf/lcp-experiment/`
+as `control-*` and `high-priority-*`. The first exploratory `candidate-*`
+batch had overlapping preview servers and is excluded from this comparison.
+These older raw artifacts were absent from the inspected workspace on
+2026-11-17; see [evidence retention](#evidence-retention).
 
 ### Server-resolved hero locale (2026-11-16)
 
@@ -152,9 +167,82 @@ empty language values, and both orders of duplicate language parameters. A
 client navigation from the Chinese home page to the design system and back
 retained the Chinese hero and links without uncaught page errors.
 
-The raw candidate samples are `.perf/lcp-experiment/server-locale-*.json`.
-The original trace, document captures, and browser verification logs are under
-`.perf/render-investigation/` (local, gitignored).
+Candidate samples were originally written as
+`.perf/lcp-experiment/server-locale-*.json`, with traces, document captures and
+browser logs under `.perf/render-investigation/`. These older raw artifacts
+were absent from the inspected workspace on 2026-11-17.
+
+### Server-seeded theme experiment (2026-11-17)
+
+Tested passing the root layout's resolved theme and brand through `ShellLayout`
+to `ThemeProvider`, using those values during hydration, then restoring browser
+preferences in a mount effect. Persistence waited for restoration to finish,
+preserving the existing local-storage/cookie/system precedence and legacy aliases.
+
+| Production build | Simulated LCP samples (ms) | Median (ms) |
+| --- | --- | --- |
+| Existing theme provider | 4015, 3974, 4045 | 4015 |
+| Server-seeded provider | 4062, 4010, 4025 | 4025 |
+
+Both batches used Node 24.22.1, Lighthouse 13.5.0, Edge 157 and identical
+`constrained-desktop` settings. Each build received an HTTP warm-up and a
+separate Lighthouse warm-up before three cold-browser samples. The candidate's
+10 ms (0.24%) higher median and overlapping ranges establish no meaningful
+improvement or regression. It was reverted.
+
+The same 13 preference scenarios passed on both builds, covering first visits,
+system dark mode, conflicting cookies/storage, legacy and invalid values,
+blocked storage, toggling/reloading, and saved appearance without JavaScript
+at 390 and 1350 px. Six existing appearance E2E tests also passed on the
+candidate. This is a local cold-load comparison; returning-user cache performance
+and production field improvement were not established.
+
+### Startup Web Storage investigation (2026-11-17)
+
+Instrumented native `localStorage` and `sessionStorage` accessors and methods,
+aligning calls with CDP LCP events. Three fresh persistent browser profiles per
+variant each performed a cold visit and reload. A fourth profile collected
+attribution stacks and is excluded from the timing table. Stored values were
+not recorded; keys were reduced to fixed application categories.
+
+| Variant, cold visits | Total storage time (ms) | Storage time before LCP (ms) |
+| --- | --- | --- |
+| Existing local build | 1.9, 1.1, 1.5 | 0, 0, 0 |
+| Public production | 1.4, 5.1, 2.5 | 1.0, 4.8, 2.4 |
+| Local theme candidate | 10.2, 3.2, 5.9 | 0, 0, 0 |
+
+The candidate reordered reads: auth read session storage first, while the PWA
+banner became the first local-storage reader, followed by theme restoration.
+It did not remove startup storage work. The earlier 22 ms theme-read estimate
+from three CPU samples did not reproduce consistently under direct timing;
+there is no evidence of a fixed 22 ms delay transferring between providers.
+
+All 24 navigations returned HTTP 200 with the hero image as LCP, no horizontal
+overflow and no uncaught page errors. The replayed candidate was reverted.
+Storage is not a material LCP bottleneck in these measured visits, so a broader
+storage rewrite is not justified by this evidence.
+
+These instrumented desktop visits used actual 1x CPU and no network emulation,
+and are **not a Lighthouse budget comparison**. Wrappers add overhead; zero
+readings mean below timer resolution. Cookies, JSON parsing/validation, large
+saved histories, mobile devices and field performance were not measured.
+
+### Evidence retention
+
+The newer experiments used source baseline `91df1030a5f1d3ec17324a102b2bda7c420b8fd4`.
+Their reports and diagnostic scripts were verified locally in workspace-status
+packages named `qwen-server-theme-20261117` and `qwen-startup-storage-20261117`.
+Each contains a `RESULTS.md` and `verification.json`; the theme package also
+contains `comparison.json`, and the storage package contains `summary.json`.
+These are local evidence packages outside the checkout, not repository files.
+
+Older `.perf/lcp-experiment/` and `.perf/render-investigation/` paths identify
+original output locations. Those ignored originals were absent from the
+inspected workspace on 2026-11-17; the older entries above remain historical
+summaries. Reproduce their measurements before relying on the original data.
+Before clearing local artifacts, attach the relevant raw reports, warm-ups,
+effective settings, source revision and candidate diff to the review record.
+Avoid depending on an absolute machine path as the only evidence reference.
 
 ## Related home optimizations
 
@@ -170,9 +258,10 @@ The three-run repeat control measured 3923, 3890, and 3973 ms simulated LCP
 (median 3923 ms). The final candidate measured 4050, 4000, and 3972 ms (median
 4000 ms). Startup script transfer fell from 362997 to 358226 bytes (4771 bytes,
 about 1.3%). This change reduces startup JavaScript; it did **not** demonstrate
-an LCP improvement. The unchanged 2500 ms target remains unmet. Raw reports,
-warm-ups, and the font experiment are retained under `.perf/lcp-experiment/`
-with `panels-control-*`, `panels-final-*`, and `deferred-font-*` names.
+an LCP improvement. The unchanged 2500 ms target remains unmet. Reports,
+warm-ups and the font experiment were originally written under
+`.perf/lcp-experiment/` with `panels-control-*`, `panels-final-*` and
+`deferred-font-*` names; see [evidence retention](#evidence-retention).
 
 The CSS investigation identified about 28 KB of compressed render-blocking
 styles and a display-font dependency discovered after its stylesheet. Preloading
