@@ -434,11 +434,24 @@ test("upload -> analyze -> prepare preview -> copy/download smoke flow", async (
   const repoZipDownloadPromise = page
     .waitForEvent("download", { timeout: 10_000 })
     .catch(() => null);
-  const repoExportButton = page.getByTestId("repo-export-button");
-  await repoExportButton.click();
-  await expect(repoExportButton).toHaveAttribute("aria-busy", "true", {
-    timeout: 5_000,
+  let releaseRepoExport!: () => void;
+  // Hold the response until the busy state is observed, even on a fast server.
+  const repoExportGate = new Promise<void>((resolve) => {
+    releaseRepoExport = resolve;
   });
+  await page.route("**/api/export-repo", async (route) => {
+    await repoExportGate;
+    await route.continue();
+  });
+  const repoExportButton = page.getByTestId("repo-export-button");
+  try {
+    await repoExportButton.click();
+    await expect(repoExportButton).toHaveAttribute("aria-busy", "true", {
+      timeout: 5_000,
+    });
+  } finally {
+    releaseRepoExport();
+  }
   await expect(repoExportButton).toHaveAttribute("aria-busy", "false", {
     timeout: 10_000,
   });
