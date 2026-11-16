@@ -6,18 +6,25 @@
  *   node scripts/perf-lcp-budget.mjs
  *   node scripts/perf-lcp-budget.mjs --url https://qwen-ui-lab.vercel.app --max-lcp-ms 2500
  *   node scripts/perf-lcp-budget.mjs --strict
+ *   node scripts/perf-lcp-budget.mjs --profile mobile --output .perf/mobile.json
  *
  * Env:
  *   PERF_URL / PRODUCTION_DEPLOY_URL — target origin (default: https://qwen-ui-lab.vercel.app)
  *   PERF_PATH — path appended to origin (default: /)
  *   PERF_MAX_LCP_MS — budget in milliseconds (default: 2500)
  *   PERF_LCP_STRICT — "1" or "true" to fail on breach (default: warn-only)
+ *   PERF_PROFILE - constrained-desktop (default), desktop, or mobile
  */
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import lighthouse from "lighthouse";
 import * as chromeLauncher from "chrome-launcher";
+import {
+  DEFAULT_PERF_PROFILE,
+  lighthouseProfile,
+  performanceSettings,
+} from "./lib/lighthouse-profile.mjs";
 
 const ROOT = process.cwd();
 const PERF_DIR = path.join(ROOT, ".perf");
@@ -30,6 +37,8 @@ function parseArgs(argv) {
       "https://qwen-ui-lab.vercel.app",
     path: process.env.PERF_PATH || "/",
     maxLcpMs: Number(process.env.PERF_MAX_LCP_MS || 2500),
+    profile: process.env.PERF_PROFILE || DEFAULT_PERF_PROFILE,
+    output: ".perf/lighthouse-lcp-budget.json",
     strict:
       process.env.PERF_LCP_STRICT === "1" ||
       process.env.PERF_LCP_STRICT === "true",
@@ -40,10 +49,19 @@ function parseArgs(argv) {
     if (current === "--url") options.url = argv[i + 1];
     if (current === "--path") options.path = argv[i + 1];
     if (current === "--max-lcp-ms") options.maxLcpMs = Number(argv[i + 1]);
+    if (current === "--profile") options.profile = argv[i + 1];
+    if (current === "--output") options.output = argv[i + 1];
     if (current === "--strict") options.strict = true;
     if (current === "--warn-only") options.strict = false;
   }
 
+  if (!Number.isFinite(options.maxLcpMs) || options.maxLcpMs <= 0) {
+    throw new Error("LCP budget must be a positive finite number.");
+  }
+  if (!options.profile || !options.output) {
+    throw new Error("Missing profile or output value.");
+  }
+  lighthouseProfile(options.profile);
   return options;
 }
 
@@ -84,22 +102,15 @@ try {
     output: "json",
     logLevel: "error",
     onlyCategories: ["performance"],
-    throttlingMethod: "simulate",
-    formFactor: "desktop",
-    screenEmulation: {
-      mobile: false,
-      width: 1350,
-      height: 940,
-      deviceScaleFactor: 1,
-      disabled: false,
-    },
+    ...lighthouseProfile(options.profile),
   });
 
   if (!result?.lhr) {
     throw new Error("Lighthouse did not return an LHR payload.");
   }
 
-  const reportPath = path.join(PERF_DIR, "lighthouse-lcp-budget.json");
+  const reportPath = path.resolve(ROOT, options.output);
+  await fs.mkdir(path.dirname(reportPath), { recursive: true });
   await fs.writeFile(reportPath, result.report, "utf8");
 
   const lcpAudit = result.lhr.audits["largest-contentful-paint"];
@@ -109,8 +120,13 @@ try {
 
   const summary = {
     targetUrl,
+    profile: options.profile,
+    lighthouseVersion: result.lhr.lighthouseVersion,
+    settings: performanceSettings(result.lhr),
     performanceScore: perfScore,
     lcpMs: Number.isFinite(lcpMs) ? Math.round(lcpMs) : null,
+    observedLcpMs:
+      result.lhr.audits.metrics?.details?.items?.[0]?.observedLargestContentfulPaint ?? null,
     lcpDisplay,
     maxLcpMs: options.maxLcpMs,
     strict: options.strict,
@@ -126,15 +142,15 @@ try {
     const message = `LCP budget exceeded: ${lcpDisplay} (${Math.round(lcpMs)}ms) > ${options.maxLcpMs}ms on ${targetUrl}`;
     if (options.strict) {
       console.error(`FAIL: ${message}`);
-      process.exit(1);
+      process.exitCode = 1;
+    } else {
+      console.warn(`WARN: ${message} (warn-only mode; set PERF_LCP_STRICT=1 or --strict to fail)`);
     }
-    console.warn(`WARN: ${message} (warn-only mode; set PERF_LCP_STRICT=1 or --strict to fail)`);
-    process.exit(0);
+  } else {
+    console.log(
+      `PASS: LCP ${lcpDisplay} (${Math.round(lcpMs)}ms) within ${options.maxLcpMs}ms budget on ${targetUrl}`,
+    );
   }
-
-  console.log(
-    `PASS: LCP ${lcpDisplay} (${Math.round(lcpMs)}ms) within ${options.maxLcpMs}ms budget on ${targetUrl}`,
-  );
 } finally {
   if (chrome) {
     try {

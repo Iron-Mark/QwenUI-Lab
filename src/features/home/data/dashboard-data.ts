@@ -33,6 +33,15 @@ export interface ChannelMixPoint {
   share: number;
 }
 
+export interface DashboardSampleData {
+  stats: StatCardData[];
+  revenueData: RevenueDataPoint[];
+  performanceData: PerformanceDataPoint[];
+  channelMixData: ChannelMixPoint[];
+  activities: ActivityData[];
+  quickActions: QuickActionData[];
+}
+
 export const stats: StatCardData[] = [
   { label: "Total Revenue", value: "$45,231", change: "+20.1%", trend: "up" },
   { label: "Subscriptions", value: "+2,350", change: "+180.1%", trend: "up" },
