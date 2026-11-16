@@ -109,8 +109,10 @@ jobs:
       - name: Wait for app
         run: npx --yes wait-on@7.2.0 --timeout 120000 http://127.0.0.1:${PORT}
 
-      - name: Check internal links
-        run: npx --yes -p node@22 -p linkinator@6.1.2 linkinator http://127.0.0.1:${PORT} --recurse --timeout 15000 --retry --concurrency 3 --skip ".*_next.*" --skip ".*api/analyze-ui.*" --skip "https://ph.linkedin.com/.*"
+      - name: Check site links
+        # --retry handles rate limits; --retry-errors handles transient 5xx/network failures.
+        # Persistent failures still fail this step, including external links.
+        run: npx --yes -p node@22 -p linkinator@6.1.2 linkinator http://127.0.0.1:${PORT} --recurse --timeout 15000 --retry --retry-errors --retry-errors-count 3 --retry-errors-jitter 3000 --concurrency 3 --skip ".*_next.*" --skip ".*api/analyze-ui.*" --skip "https://ph.linkedin.com/.*"
 
       - name: Lighthouse performance budget
         run: |

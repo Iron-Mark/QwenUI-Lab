@@ -79,6 +79,14 @@ npm run test:e2e
 
 `test:e2e` is expected to stay local-analysis safe: Playwright clears live env vars and mocks health/analyze responses.
 
+The main-branch CI web audit crawls local routes and checks their outbound links.
+Linkinator's `--retry` flag only handles rate limits with a `Retry-After` header;
+the audit also enables `--retry-errors` with a configured retry count of 3 and
+up to 3000 ms of jitter for temporary HTTP 5xx and network errors. Retries use
+exponential backoff. Persistent failures still block CI, including external
+links; HTTP 404 failures are not retried. The existing exclusions for generated
+Next.js assets, the analysis API, and LinkedIn remain in place.
+
 ## Contribution Scope Guidance
 
 - Keep changes focused and reviewable.
