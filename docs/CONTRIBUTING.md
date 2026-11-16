@@ -30,6 +30,11 @@ Use `dev` as the normal integration branch for all product, docs, and maintenanc
 - Treat `main` as production-only. Direct pushes to `main` are blocked by branch protection.
 - Create release tags only from commits already on `main`.
 
+When dependency security fixes ship directly on `main`, bring the reviewed
+manifest and lockfile changes back into `dev` before the next release. Verify
+with `npm ci` before running checks so existing installed dependencies cannot
+hide an older lockfile.
+
 ## Local vs Live Analysis (Important)
 
 `qwen-ui-lab` defaults to local analysis behavior.
