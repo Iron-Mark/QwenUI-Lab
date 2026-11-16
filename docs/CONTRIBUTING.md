@@ -30,6 +30,11 @@ Use `dev` as the normal integration branch for all product, docs, and maintenanc
 - Treat `main` as production-only. Direct pushes to `main` are blocked by branch protection.
 - Create release tags only from commits already on `main`.
 
+When dependency security fixes ship directly on `main`, bring the reviewed
+manifest and lockfile changes back into `dev` before the next release. Verify
+with `npm ci` before running checks so existing installed dependencies cannot
+hide an older lockfile.
+
 ## Local vs Live Analysis (Important)
 
 `qwen-ui-lab` defaults to local analysis behavior.
@@ -78,6 +83,14 @@ npm run test:e2e
 ```
 
 `test:e2e` is expected to stay local-analysis safe: Playwright clears live env vars and mocks health/analyze responses.
+
+The main-branch CI web audit crawls local routes and checks their outbound links.
+Linkinator's `--retry` flag only handles rate limits with a `Retry-After` header;
+the audit also enables `--retry-errors` with a configured retry count of 3 and
+up to 3000 ms of jitter for temporary HTTP 5xx and network errors. Retries use
+exponential backoff. Persistent failures still block CI, including external
+links; HTTP 404 failures are not retried. The existing exclusions for generated
+Next.js assets, the analysis API, and LinkedIn remain in place.
 
 ## Contribution Scope Guidance
 
