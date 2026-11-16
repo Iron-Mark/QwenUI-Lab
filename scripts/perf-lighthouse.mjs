@@ -7,12 +7,19 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import lighthouse from "lighthouse";
 import * as chromeLauncher from "chrome-launcher";
+import {
+  DEFAULT_PERF_PROFILE,
+  lighthouseProfile,
+  performanceSettings,
+} from "./lib/lighthouse-profile.mjs";
 
 const ROOT = process.cwd();
 const PERF_DIR = path.join(ROOT, ".perf");
 const LOCK_FILE = path.join(PERF_DIR, "perf-build.lock");
 const REPORT_NAME = process.argv[2] || "latest";
 const REPORT_PATH = path.join(PERF_DIR, `lighthouse-${REPORT_NAME}.json`);
+const PROFILE = process.env.PERF_PROFILE || DEFAULT_PERF_PROFILE;
+lighthouseProfile(PROFILE);
 const RANDOM_BASE_PORT = 4300 + Math.floor(Math.random() * 300);
 const REQUESTED_PORT = Number(process.env.PERF_PORT || RANDOM_BASE_PORT);
 
@@ -122,6 +129,9 @@ function printSummary(lhr) {
   const top = extractTopBottlenecks(lhr.audits);
   const summary = {
     report: path.relative(ROOT, REPORT_PATH),
+    profile: PROFILE,
+    lighthouseVersion: lhr.lighthouseVersion,
+    settings: performanceSettings(lhr),
     performanceScore: perfScore,
     metrics: { fcp, lcp, tbt, cls, si },
     topBottlenecks: top,
@@ -181,15 +191,7 @@ try {
     output: "json",
     logLevel: "error",
     onlyCategories: ["performance"],
-    throttlingMethod: "simulate",
-    formFactor: "desktop",
-    screenEmulation: {
-      mobile: false,
-      width: 1350,
-      height: 940,
-      deviceScaleFactor: 1,
-      disabled: false,
-    },
+    ...lighthouseProfile(PROFILE),
   });
 
   if (!result?.lhr) {

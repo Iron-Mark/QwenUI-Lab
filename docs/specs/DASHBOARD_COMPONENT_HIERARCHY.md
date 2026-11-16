@@ -1,6 +1,6 @@
 # Component Hierarchy
 
-> Derived from Qwen3-VL breakdown, refined during human review.
+> Home route structure and the dashboard preview loaded from its sample launcher.
 
 ## Final Tree
 
@@ -17,25 +17,26 @@
   </Header>
 
   <main>
-    <DashboardShell>
-      <PageHeader (inline h2 + p) />
-      <WorkflowBanner />
-
-      <div grid sm:2 lg:4>
-        <StatCard /> × 4
-      </div>
-
-      <div grid lg:7>
-        <RevenueCard />          - col-span-4
-        <ChartPreview />         - col-span-3
-      </div>
-
-      <div grid lg:2>
-        <ActivityList />         - ul/li with avatars
-        <QuickActionsPanel />    - inline card
-          <QuickActionButton /> × 4
-      </div>
-    </DashboardShell>
+    <HomePageContent (server-resolved locale)>
+      <HomeMarketingHero (initial HTML, interactive CTA hydration) />
+      <HomeBelowFoldClient>
+        <UploadFlow (client-loaded) />
+        <DashboardShell (client-loaded)>
+          <DashboardSampleDialog>
+            Compact sample launcher + Preview trigger
+            <DialogContent (only mounted when open)>
+              DialogHeader
+              <DashboardSamplePanels (loaded on open)>
+                Tabs: Preview / Plan / Detected UI / Export
+                Preview: WorkflowBanner, StatCard x 4, RevenueCard,
+                         ChartPreview, ActivityList, QuickActionButton
+              </DashboardSamplePanels>
+              DialogActionFooter: Close + Load into workflow
+            </DialogContent>
+          </DashboardSampleDialog>
+        </DashboardShell>
+      </HomeBelowFoldClient>
+    </HomePageContent>
   </main>
 
   <Footer>
@@ -72,7 +73,9 @@
 | `ThemeToggle` | `src/features/shell/components/ThemeToggle.tsx` | - | reads context | `aria-label` |
 | `Header` | `src/features/shell/components/Header.tsx` | - | - | `<header>` semantic |
 | `Footer` | `src/features/shell/components/Footer.tsx` | - | - | `<footer>`, `<nav>`, `<ul>` |
-| `DashboardShell` | `src/features/home/components/DashboardShell.tsx` | stats[], revenueData[], activities[], quickActions[] | - | `aria-label` |
+| `DashboardShell` | `src/features/home/components/DashboardShell.tsx` | DashboardSampleData | - | Delegates to sample launcher |
+| `DashboardSampleDialog` | `src/features/home/components/DashboardSampleDialog.tsx` | DashboardSampleData | dialog open state | Named dialog, focus return, visible close/workflow actions during loading |
+| `DashboardSamplePanels` | `src/features/home/components/DashboardSamplePanels.tsx` | DashboardSampleData | selected tab | Horizontal tab list above its panels; charts load when visible |
 | `WorkflowBanner` | `src/features/home/components/WorkflowBanner.tsx` | - | - | `<section>`, `<ol>`, `aria-label` |
 | `StatCard` | `src/features/home/components/StatCard.tsx` | StatCardData | - | `aria-hidden` on trend arrows |
 | `RevenueCard` | `src/features/home/components/RevenueCard.tsx` | RevenueDataPoint[] | - | `role="meter"`, ARIA value attrs |
@@ -96,8 +99,8 @@ QuickActionData  { id, label, icon: "user-plus" | "file-text" | "mail" | "settin
 ```
 src/
   app/
-    layout.tsx          - Root layout, theme script, providers
-    page.tsx            - Dashboard page, imports data
+    layout.tsx          - Root layout, theme cookies, providers
+    page.tsx            - Home page, resolves hero locale from request query
     globals.css         - Design tokens, transitions, dark mode
   components/
     providers/
@@ -110,7 +113,12 @@ src/
         Footer.tsx       - Footer with links
     home/
       components/
-        DashboardShell.tsx - Layout orchestrator
+        HomePageContent.tsx - Server-resolved hero and client workflow
+        HomeMarketingHero.tsx - Initial hero markup and interactive CTAs
+        HomeBelowFoldClient.tsx - Client loading for upload and sample launcher
+        DashboardShell.tsx - Sample launcher container
+        DashboardSampleDialog.tsx - Launcher, dialog header and actions
+        DashboardSamplePanels.tsx - Dialog content loaded when opened
         StatCard.tsx       - KPI metric card
         RevenueCard.tsx    - Horizontal bar chart
         ActivityList.tsx   - Activity feed

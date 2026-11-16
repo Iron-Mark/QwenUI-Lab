@@ -1,21 +1,12 @@
-import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { getDictionary, type Locale } from "@/lib/i18n";
 import { HomeBelowFoldClient } from "./HomeBelowFoldClient";
 import { HomeMarketingHero } from "./HomeMarketingHero";
 
-export function HomePageContent() {
+export function HomePageContent({ locale }: { locale: Locale }) {
   return (
     <>
       <div className="relative">
-        <Suspense
-          fallback={
-            <div className="border-b border-border/60 bg-background py-12">
-              <Skeleton className="mx-auto h-40 max-w-3xl" />
-            </div>
-          }
-        >
-          <HomeMarketingHero />
-        </Suspense>
+        <HomeMarketingHero locale={locale} copy={getDictionary(locale).hero} />
         <HomeBelowFoldClient />
       </div>
     </>
