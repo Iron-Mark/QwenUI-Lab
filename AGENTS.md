@@ -85,15 +85,12 @@ them. Notably:
 Run `npm test` after touching any user-visible string or any file under
 `docs/specs/`.
 
-## Known accepted exception
+## Dependency & Security Status
 
-**brace-expansion / GHSA-mh99-v99m-4gvg.** The advisory flags every version
-≤5.0.7 including the 1.x line, which has **no patched release**. Forcing 5.x
-globally breaks eslint (verified crash in `minimatch@3`); eslint 10 would fix
-it but is blocked by `eslint-plugin-react` peering at `^9.7` max. The remaining
-instances are dev-graph only and the CI security job audits `--omit=dev`.
-Revisit when either upstream unblocks. Do not "fix" this by force-overriding
-the major — it breaks lint.
+As of 2026-11-20 on `dev`, `brace-expansion@1` (`^1.1.21`) and `brace-expansion@5`
+(`^5.0.12`) are pinned in `package.json` overrides, `Next.js` is at `16.4.5`,
+and `npm audit` reports `0` vulnerabilities. Do not force-override
+`brace-expansion` globally to a single major, as eslint depends on `minimatch@3`.
 
 ## Housekeeping
 
